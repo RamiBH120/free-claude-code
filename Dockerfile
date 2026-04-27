@@ -1,4 +1,4 @@
-# Use the official uv image which includes the high-performance installer
+# Use the official uv image
 FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 # Set working directory
@@ -8,19 +8,24 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copy the project configuration files first to leverage Docker caching
-COPY pyproject.toml uv.lock ./
+# COPY ALL metadata files needed for the build backend (Hatch)
+# We include README.md because pyproject.toml references it
+COPY pyproject.toml uv.lock README.md ./
 
-# Install dependencies
-# --frozen ensures we use the exact versions in uv.lock
-RUN uv sync --frozen --no-dev
+# Install dependencies 
+# We use --no-install-project to only install the libraries
+# This avoids the "README not found" or "Source not found" errors during the lib install phase
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy the rest of the application code
+# Now copy the rest of the application code
 COPY . .
 
-# Railway uses the PORT environment variable; we default to 8082 for local 
+# Final sync to include the local project code now that all files are present
+RUN uv sync --frozen --no-dev
+
+# Railway uses the PORT environment variable
 ENV PORT=8082
 EXPOSE 8082
 
-# Start the server using uv to ensure the 3.14 virtualenv is active
+# Start the server
 CMD ["uv", "run", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8082"]
